@@ -110,16 +110,15 @@ impl ConnectComm {
             merge & 1 > 0;
 
         let mut parameters = Vec::new();
-        while let Some(parameter) =
-            Parameter::decode(src)?
-        {
-            if let Parameter::Unknown = parameter
-            {
-                continue;
+        while src.len() > 0 {
+            match Parameter::decode(src)? {
+                Some(parameter) => {
+                    parameters.push(parameter);
+                },
+                None => continue,
             }
-
-            parameters.push(parameter);
         }
+
         Ok(Self {
             destination_ref,
             source_ref,
@@ -175,8 +174,6 @@ pub enum Parameter {
     SrcTsap(Vec<u8>),
     /// 0xc2    todo?
     DstTsap(Vec<u8>),
-    // Unknown. 0x02
-    Unknown,
 }
 
 #[derive(
@@ -235,7 +232,6 @@ impl Parameter {
             Parameter::DstTsap(data) => {
                 2 + data.len() as u8
             },
-            Parameter::Unknown => 0,
         }
     }
 
@@ -245,6 +241,7 @@ impl Parameter {
         if dst.len() == 0 {
             return Ok(None);
         }
+
         let (Some(ty), Some(length)) =
             (dst.get(0), dst.get(1))
         else {
@@ -252,6 +249,7 @@ impl Parameter {
                 "data not enough".to_string(),
             ));
         };
+
         let length = (length + 2) as usize;
         let ty = *ty;
         if dst.len() < length {
@@ -259,8 +257,10 @@ impl Parameter {
                 "data not enough".to_string(),
             ));
         }
+
         let mut data =
             dst.split_to(length).split_off(2);
+
         match ty {
             0xc0 => {
                 let size = data.get_u8();
@@ -274,14 +274,10 @@ impl Parameter {
             0xc2 => Ok(Some(Self::DstTsap(
                 data.to_vec(),
             ))),
-            0x02 => Ok(Some(Self::Unknown)),
+            0x02 => Ok(None),
             _ => {
                 return Err(Error::Error(
-                    format!(
-                        "not support parameter: \
-                         {}",
-                        ty
-                    ),
+                    format!("unknown parameter type: {}", ty),
                 ));
             },
         }
@@ -308,7 +304,6 @@ impl Parameter {
                     data.as_ref(),
                 )
             },
-            Parameter::Unknown => {},
         }
     }
 }
