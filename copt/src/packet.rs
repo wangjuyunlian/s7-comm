@@ -113,6 +113,11 @@ impl ConnectComm {
         while let Some(parameter) =
             Parameter::decode(src)?
         {
+            if let Parameter::Unknown = parameter
+            {
+                continue;
+            }
+
             parameters.push(parameter);
         }
         Ok(Self {
@@ -170,6 +175,8 @@ pub enum Parameter {
     SrcTsap(Vec<u8>),
     /// 0xc2    todo?
     DstTsap(Vec<u8>),
+    // Unknown. 0x02
+    Unknown,
 }
 
 #[derive(
@@ -228,6 +235,7 @@ impl Parameter {
             Parameter::DstTsap(data) => {
                 2 + data.len() as u8
             },
+            Parameter::Unknown => 0,
         }
     }
 
@@ -266,6 +274,7 @@ impl Parameter {
             0xc2 => Ok(Some(Self::DstTsap(
                 data.to_vec(),
             ))),
+            0x02 => Ok(Some(Self::Unknown)),
             _ => {
                 return Err(Error::Error(
                     format!(
@@ -299,6 +308,7 @@ impl Parameter {
                     data.as_ref(),
                 )
             },
+            Parameter::Unknown => {},
         }
     }
 }
