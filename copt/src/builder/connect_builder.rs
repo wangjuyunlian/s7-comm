@@ -1,4 +1,6 @@
-use crate::packet::{ConnectComm, CoptFrame, Parameter, PduType};
+use crate::packet::{
+    ConnectComm, CoptFrame, Parameter, PduType,
+};
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
@@ -26,13 +28,21 @@ impl<F> Default for ConnectBuilder<F> {
     }
 }
 
-impl<F: Debug + Eq + PartialEq> ConnectBuilder<F> {
-    pub fn source_ref(mut self, source_ref: [u8; 2]) -> Self {
+impl<F: Debug + Eq + PartialEq>
+    ConnectBuilder<F>
+{
+    pub fn source_ref(
+        mut self,
+        source_ref: [u8; 2],
+    ) -> Self {
         self.source_ref = source_ref;
         self
     }
 
-    pub fn destination_ref(mut self, destination_ref: [u8; 2]) -> Self {
+    pub fn destination_ref(
+        mut self,
+        destination_ref: [u8; 2],
+    ) -> Self {
         self.destination_ref = destination_ref;
         self
     }
@@ -45,16 +55,22 @@ impl<F: Debug + Eq + PartialEq> ConnectBuilder<F> {
     ) -> Self {
         self.class = class;
         self.extended_formats = extended_formats;
-        self.no_explicit_flow_control = no_explicit_flow_control;
+        self.no_explicit_flow_control =
+            no_explicit_flow_control;
         self
     }
 
-    pub fn push_parameter(mut self, parameter: Parameter) -> Self {
+    pub fn push_parameter(
+        mut self,
+        parameter: Parameter,
+    ) -> Self {
         self.parameters.push(parameter);
         self
     }
 
-    pub fn build_to_request(self) -> CoptFrame<F> {
+    pub fn build_to_request(
+        self,
+    ) -> CoptFrame<F> {
         let Self {
             destination_ref,
             source_ref,
@@ -65,18 +81,22 @@ impl<F: Debug + Eq + PartialEq> ConnectBuilder<F> {
             ..
         } = self;
         CoptFrame {
-            pdu_type: PduType::ConnectRequest(ConnectComm {
-                destination_ref,
-                source_ref,
-                class,
-                extended_formats,
-                no_explicit_flow_control,
-                parameters,
-            }),
+            pdu_type: PduType::ConnectRequest(
+                ConnectComm {
+                    destination_ref,
+                    source_ref,
+                    class,
+                    extended_formats,
+                    no_explicit_flow_control,
+                    parameters,
+                },
+            ),
         }
     }
 
-    pub fn build_to_confirm(self) -> CoptFrame<F> {
+    pub fn build_to_confirm(
+        self,
+    ) -> CoptFrame<F> {
         let Self {
             destination_ref,
             source_ref,
@@ -87,14 +107,16 @@ impl<F: Debug + Eq + PartialEq> ConnectBuilder<F> {
             ..
         } = self;
         CoptFrame {
-            pdu_type: PduType::ConnectConfirm(ConnectComm {
-                destination_ref,
-                source_ref,
-                class,
-                extended_formats,
-                no_explicit_flow_control,
-                parameters,
-            }),
+            pdu_type: PduType::ConnectConfirm(
+                ConnectComm {
+                    destination_ref,
+                    source_ref,
+                    class,
+                    extended_formats,
+                    no_explicit_flow_control,
+                    parameters,
+                },
+            ),
         }
     }
 }

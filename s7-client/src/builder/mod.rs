@@ -9,7 +9,8 @@ use self::s7_write::S7WriteBuilder;
 mod copt_connect_request;
 mod s7_setup;
 
-pub fn build_copt_connect_request() -> CoptConnectRequestBuilder {
+pub fn build_copt_connect_request(
+) -> CoptConnectRequestBuilder {
     CoptConnectRequestBuilder::default()
 }
 

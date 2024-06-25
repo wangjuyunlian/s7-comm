@@ -1,10 +1,16 @@
 use std::ops::{Deref, DerefMut};
 
 #[derive(Default)]
-pub struct S7Encoder(tpkt::TpktEncoder<copt::CoptEncoder<s7_comm::S7CommEncoder>>);
+pub struct S7Encoder(
+    tpkt::TpktEncoder<
+        copt::CoptEncoder<s7_comm::S7CommEncoder>,
+    >,
+);
 
 impl Deref for S7Encoder {
-    type Target = tpkt::TpktEncoder<copt::CoptEncoder<s7_comm::S7CommEncoder>>;
+    type Target = tpkt::TpktEncoder<
+        copt::CoptEncoder<s7_comm::S7CommEncoder>,
+    >;
 
     fn deref(&self) -> &Self::Target {
         &self.0

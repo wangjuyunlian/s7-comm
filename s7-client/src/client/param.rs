@@ -14,13 +14,13 @@ pub enum ConnectionType {
     /// Connect to the PLC programming console
     /// (Programmiergeräte). German for
     /// programming device.
-    PG    = 1,
+    PG = 1,
     /// Connect to the PLC Siemens HMI panel
-    OP    = 2,
+    OP = 2,
     /// Basic connection for generic data
     /// transfer connection
     /// 14 Basic connections
-    Basic = 3
+    Basic = 3,
 }
 
 impl Default for ConnectionType {
@@ -34,38 +34,38 @@ impl Default for ConnectionType {
 )]
 pub enum ConnectMode {
     Tsap {
-        conn_type:   ConnectionType,
-        local_tsap:  u16,
-        remote_tsap: u16
+        conn_type: ConnectionType,
+        local_tsap: u16,
+        remote_tsap: u16,
     },
     RackSlot {
         conn_type: ConnectionType,
-        rack:      u16,
-        slot:      u16
-    }
+        rack: u16,
+        slot: u16,
+    },
 }
 impl ConnectMode {
     pub fn init_tsap(
         conn_type: ConnectionType,
         local_tsap: u16,
-        remote_tsap: u16
+        remote_tsap: u16,
     ) -> Self {
         Self::Tsap {
             conn_type,
             local_tsap,
-            remote_tsap
+            remote_tsap,
         }
     }
 
     pub fn init_rack_slot(
         conn_type: ConnectionType,
         rack: u16,
-        slot: u16
+        slot: u16,
     ) -> Self {
         Self::RackSlot {
             conn_type,
             rack,
-            slot
+            slot,
         }
     }
 
@@ -78,7 +78,7 @@ impl ConnectMode {
             ConnectMode::RackSlot {
                 conn_type,
                 ..
-            } => conn_type
+            } => conn_type,
         }
     }
 
@@ -89,7 +89,7 @@ impl ConnectMode {
                 ..
             } => [
                 (local_tsap >> 8) as u8,
-                *local_tsap as u8
+                *local_tsap as u8,
             ],
             ConnectMode::RackSlot { .. } => {
                 [0x01, 0x00]
@@ -106,7 +106,7 @@ impl ConnectMode {
             ConnectMode::RackSlot {
                 rack,
                 slot,
-                conn_type
+                conn_type,
             } => {
                 ((*conn_type as u16) << 8)
                     + (rack * 0x20)
@@ -115,7 +115,7 @@ impl ConnectMode {
         };
         [
             (remote_tsap >> 8) as u8,
-            remote_tsap as u8
+            remote_tsap as u8,
         ]
     }
 }

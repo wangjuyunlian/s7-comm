@@ -23,12 +23,16 @@ impl<F> TpktFrame<F> {
         self.payload
     }
 
-    pub fn to_bytes<E>(self) -> Result<BytesMut, crate::error::Error>
+    pub fn to_bytes<E>(
+        self,
+    ) -> Result<BytesMut, crate::error::Error>
     where
         E: Encoder<F> + Default,
-        <E as Encoder<F>>::Error: ToTpktError + Send + Sync + 'static,
+        <E as Encoder<F>>::Error:
+            ToTpktError + Send + Sync + 'static,
     {
-        let mut encoder = TpktEncoder(E::default());
+        let mut encoder =
+            TpktEncoder(E::default());
         let mut dst = BytesMut::new();
         encoder.encode(self, &mut dst)?;
         Ok(dst)

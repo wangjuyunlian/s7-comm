@@ -13,7 +13,8 @@ pub enum Error {
     Error(String),
 }
 
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> =
+    std::result::Result<T, Error>;
 
 pub trait ToCoptError {
     fn to_err(self) -> Error;
@@ -31,8 +32,12 @@ impl ToTpktError for Error {
     }
 }
 
-impl From<TryFromPrimitiveError<TpduSize>> for Error {
-    fn from(value: TryFromPrimitiveError<TpduSize>) -> Self {
+impl From<TryFromPrimitiveError<TpduSize>>
+    for Error
+{
+    fn from(
+        value: TryFromPrimitiveError<TpduSize>,
+    ) -> Self {
         Self::Error(value.to_string())
     }
 }

@@ -1,6 +1,6 @@
 use crate::{
     builder::ConnectBuilder, error::*,
-    DtDataBuilder
+    DtDataBuilder,
 };
 use bytes::{Buf, BufMut, BytesMut};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
@@ -8,18 +8,18 @@ use std::fmt::Debug;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct CoptFrame<F: Debug + Eq + PartialEq> {
-    pub pdu_type: PduType<F>
+    pub pdu_type: PduType<F>,
 }
 
 impl<F: Debug + Eq + PartialEq> CoptFrame<F> {
     pub fn builder_of_dt_data(
-        payload: F
+        payload: F,
     ) -> DtDataBuilder<F> {
         DtDataBuilder::new(payload)
     }
 
-    pub fn builder_of_connect()
-    -> ConnectBuilder<F> {
+    pub fn builder_of_connect(
+    ) -> ConnectBuilder<F> {
         ConnectBuilder::<F>::default()
     }
 
@@ -35,7 +35,7 @@ pub enum PduType<F: Debug + Eq + PartialEq> {
     /// 0x0d
     ConnectConfirm(ConnectComm),
     /// 0x0f
-    DtData(DtData<F>)
+    DtData(DtData<F>),
 }
 
 impl<F: Debug + Eq + PartialEq> PduType<F> {
@@ -47,15 +47,15 @@ impl<F: Debug + Eq + PartialEq> PduType<F> {
             PduType::ConnectConfirm(conn) => {
                 conn.length()
             },
-            PduType::DtData(_) => 2
+            PduType::DtData(_) => 2,
         }
     }
 }
 #[derive(Debug, Eq, PartialEq)]
 pub struct DtData<F: Debug + Eq + PartialEq> {
-    pub(crate) tpdu_number:    u8,
+    pub(crate) tpdu_number: u8,
     pub(crate) last_data_unit: bool,
-    pub(crate) payload:        F
+    pub(crate) payload: F,
 }
 
 impl<F: Debug + Eq + PartialEq> DtData<F> {
@@ -74,12 +74,12 @@ impl<F: Debug + Eq + PartialEq> DtData<F> {
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct ConnectComm {
-    pub destination_ref:          [u8; 2],
-    pub source_ref:               [u8; 2],
-    pub class:                    u8,
-    pub extended_formats:         bool,
+    pub destination_ref: [u8; 2],
+    pub source_ref: [u8; 2],
+    pub class: u8,
+    pub extended_formats: bool,
     pub no_explicit_flow_control: bool,
-    pub parameters:               Vec<Parameter>
+    pub parameters: Vec<Parameter>,
 }
 
 impl ConnectComm {
@@ -91,11 +91,11 @@ impl ConnectComm {
     }
 
     pub(crate) fn decode(
-        src: &mut BytesMut
+        src: &mut BytesMut,
     ) -> Result<Self> {
         if src.len() < 5 {
             return Err(Error::Error(
-                "data not enough".to_string()
+                "data not enough".to_string(),
             ));
         }
         let destination_ref =
@@ -121,16 +121,16 @@ impl ConnectComm {
             class,
             extended_formats,
             no_explicit_flow_control,
-            parameters
+            parameters,
         })
     }
 
     pub(crate) fn encode(
         &self,
-        dst: &mut BytesMut
+        dst: &mut BytesMut,
     ) {
         dst.put_slice(
-            self.destination_ref.as_ref()
+            self.destination_ref.as_ref(),
         );
         dst.put_slice(self.source_ref.as_ref());
 
@@ -169,7 +169,7 @@ pub enum Parameter {
     /// 0xc1    todo?
     SrcTsap(Vec<u8>),
     /// 0xc2    todo?
-    DstTsap(Vec<u8>)
+    DstTsap(Vec<u8>),
 }
 
 #[derive(
@@ -187,9 +187,9 @@ pub enum TpduSize {
     L4096 = 0b0000_1100,
     L2048 = 0b0000_1011,
     L1024 = 0b0000_1010,
-    L512  = 0b0000_1001,
-    L256  = 0b0000_1000,
-    L128  = 0b0000_0111
+    L512 = 0b0000_1001,
+    L256 = 0b0000_1000,
+    L128 = 0b0000_0111,
 }
 
 impl TpduSize {
@@ -201,7 +201,7 @@ impl TpduSize {
             TpduSize::L1024 => 1024,
             TpduSize::L512 => 512,
             TpduSize::L256 => 256,
-            TpduSize::L128 => 128
+            TpduSize::L128 => 128,
         }
     }
 }
@@ -232,19 +232,23 @@ impl Parameter {
     }
 
     fn decode(
-        dst: &mut BytesMut
+        dst: &mut BytesMut,
     ) -> Result<Option<Self>> {
         if dst.len() == 0 {
             return Ok(None);
         }
-        let (Some(ty), Some(length)) = (dst.get(0), dst.get(1)) else {
-            return Err(Error::Error("data not enough".to_string()));
+        let (Some(ty), Some(length)) =
+            (dst.get(0), dst.get(1))
+        else {
+            return Err(Error::Error(
+                "data not enough".to_string(),
+            ));
         };
         let length = (length + 2) as usize;
         let ty = *ty;
         if dst.len() < length {
             return Err(Error::Error(
-                "data not enough".to_string()
+                "data not enough".to_string(),
             ));
         }
         let mut data =
@@ -253,14 +257,14 @@ impl Parameter {
             0xc0 => {
                 let size = data.get_u8();
                 Ok(Some(Self::TpduSize(
-                    size.try_into()?
+                    size.try_into()?,
                 )))
             },
             0xc1 => Ok(Some(Self::SrcTsap(
-                data.to_vec()
+                data.to_vec(),
             ))),
             0xc2 => Ok(Some(Self::DstTsap(
-                data.to_vec()
+                data.to_vec(),
             ))),
             _ => {
                 return Err(Error::Error(
@@ -268,9 +272,9 @@ impl Parameter {
                         "not support parameter: \
                          {}",
                         ty
-                    )
+                    ),
                 ));
-            }
+            },
         }
     }
 
@@ -285,16 +289,16 @@ impl Parameter {
                 dst.put_u8(0xc1);
                 dst.put_u8(data.len() as u8);
                 dst.extend_from_slice(
-                    data.as_ref()
+                    data.as_ref(),
                 )
             },
             Parameter::DstTsap(data) => {
                 dst.put_u8(0xc2);
                 dst.put_u8(data.len() as u8);
                 dst.extend_from_slice(
-                    data.as_ref()
+                    data.as_ref(),
                 )
-            }
+            },
         }
     }
 }
