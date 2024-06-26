@@ -6,9 +6,7 @@ use std::ops::Deref;
 
 type S7Area = s7_comm::Area;
 // Area ID
-#[derive(
-    Debug, Copy, Clone, Serialize, Deserialize,
-)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 #[allow(dead_code)]
 pub enum Area {
     ProcessInput(DataSizeType),
@@ -32,26 +30,22 @@ pub enum Area {
 impl Into<ItemRequest> for Area {
     fn into(self) -> ItemRequest {
         match &self {
-            Area::ProcessInput(ds) => {
-                ItemRequest::new(
-                    ds.to_transport_size(),
-                    s7_comm::DbNumber::NotIn,
-                    S7Area::ProcessInput,
-                    ds.byte_addr(),
-                    ds.bit_addr(),
-                    ds.len(),
-                )
-            },
-            Area::ProcessOutput(ds) => {
-                ItemRequest::new(
-                    ds.to_transport_size(),
-                    s7_comm::DbNumber::NotIn,
-                    S7Area::ProcessOutput,
-                    ds.byte_addr(),
-                    ds.bit_addr(),
-                    ds.len(),
-                )
-            },
+            Area::ProcessInput(ds) => ItemRequest::new(
+                ds.to_transport_size(),
+                s7_comm::DbNumber::NotIn,
+                S7Area::ProcessInput,
+                ds.byte_addr(),
+                ds.bit_addr(),
+                ds.len(),
+            ),
+            Area::ProcessOutput(ds) => ItemRequest::new(
+                ds.to_transport_size(),
+                s7_comm::DbNumber::NotIn,
+                S7Area::ProcessOutput,
+                ds.byte_addr(),
+                ds.bit_addr(),
+                ds.len(),
+            ),
             Area::Merker(ds) => ItemRequest::new(
                 ds.to_transport_size(),
                 s7_comm::DbNumber::NotIn,
@@ -68,14 +62,9 @@ impl Into<ItemRequest> for Area {
                 ds.bit_addr(),
                 ds.len(),
             ),
-            Area::DataBausteine(
-                db_number,
-                ds,
-            ) => ItemRequest::new(
+            Area::DataBausteine(db_number, ds) => ItemRequest::new(
                 ds.to_transport_size(),
-                s7_comm::DbNumber::DbNumber(
-                    *db_number,
-                ),
+                s7_comm::DbNumber::DbNumber(*db_number),
                 S7Area::DataBlocks,
                 ds.byte_addr(),
                 ds.bit_addr(),
@@ -88,18 +77,12 @@ impl Into<ItemRequest> for Area {
 impl Area {
     pub fn area_data(&self) -> S7Area {
         match &self {
-            Area::ProcessInput(_) => {
-                S7Area::ProcessInput
-            },
-            Area::ProcessOutput(_) => {
-                S7Area::ProcessOutput
-            },
+            Area::ProcessInput(_) => S7Area::ProcessInput,
+            Area::ProcessOutput(_) => S7Area::ProcessOutput,
             Area::Merker(_) => S7Area::Merker,
             Area::V(_) => S7Area::DataBlocks,
-            Area::DataBausteine(_, _) => {
-                S7Area::DataBlocks
-            }, /* Area::Counter => {0x1C}
-                * Area::Timer => {0x1D} */
+            Area::DataBausteine(_, _) => S7Area::DataBlocks, /* Area::Counter => {0x1C}
+                                                              * Area::Timer => {0x1D} */
         }
     }
 
@@ -109,9 +92,7 @@ impl Area {
             Area::ProcessOutput(_) => 0,
             Area::Merker(_) => 0,
             Area::V(_) => 1,
-            Area::DataBausteine(db_number, _) => {
-                *db_number
-            },
+            Area::DataBausteine(db_number, _) => *db_number,
         }
     }
 }
@@ -128,9 +109,7 @@ impl Deref for Area {
         }
     }
 }
-#[derive(
-    Debug, Copy, Clone, Serialize, Deserialize,
-)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum BitAddr {
     Addr0 = 0,
@@ -145,9 +124,7 @@ pub enum BitAddr {
 impl TryFrom<u16> for BitAddr {
     type Error = Error;
 
-    fn try_from(
-        value: u16,
-    ) -> Result<Self, Self::Error> {
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
         match value {
             0 => Ok(Self::Addr0),
             1 => Ok(Self::Addr1),
@@ -157,16 +134,12 @@ impl TryFrom<u16> for BitAddr {
             5 => Ok(Self::Addr5),
             6 => Ok(Self::Addr6),
             7 => Ok(Self::Addr7),
-            val => {
-                Err(Error::InvalidBitAddr(val))
-            },
+            val => Err(Error::InvalidBitAddr(val)),
         }
     }
 }
 
-#[derive(
-    Debug, Copy, Clone, Serialize, Deserialize,
-)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum DataSizeType {
     Bit { addr: u16, bit_addr: BitAddr },
     Byte { addr: u16, len: u16 },
@@ -176,9 +149,7 @@ impl DataSizeType {
     pub fn bit_addr(&self) -> u8 {
         use DataSizeType::*;
         match self {
-            Bit { bit_addr, .. } => {
-                *bit_addr as u8
-            },
+            Bit { bit_addr, .. } => *bit_addr as u8,
             _ => 0x00,
         }
     }
@@ -200,13 +171,9 @@ impl DataSizeType {
         }
     }
 
-    pub fn to_transport_size(
-        &self,
-    ) -> TransportSize {
+    pub fn to_transport_size(&self) -> TransportSize {
         match self {
-            DataSizeType::Bit { .. } => {
-                TransportSize::Bit
-            },
+            DataSizeType::Bit { .. } => TransportSize::Bit,
             _ => TransportSize::NoBit,
         }
     }

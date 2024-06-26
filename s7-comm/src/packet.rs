@@ -1,9 +1,6 @@
 use crate::{builder::*, error::*};
 use bytes::{Buf, BufMut, BytesMut};
-use num_enum::{
-    FromPrimitive, IntoPrimitive,
-    TryFromPrimitive,
-};
+use num_enum::{FromPrimitive, IntoPrimitive, TryFromPrimitive};
 /// more info: https://github.com/wireshark/wireshark/blob/master/epan/dissectors/packet-s7comm.c
 
 #[derive(Debug, Eq, PartialEq)]
@@ -18,25 +15,16 @@ pub enum Frame {
 }
 
 impl Frame {
-    pub fn job_setup(
-        pdu_ref: u16,
-    ) -> FrameJobSetupBuilder {
-        FrameJobSetupBuilder::default()
-            .pdu_ref(pdu_ref)
+    pub fn job_setup(pdu_ref: u16) -> FrameJobSetupBuilder {
+        FrameJobSetupBuilder::default().pdu_ref(pdu_ref)
     }
 
-    pub fn job_write_var(
-        pdu_ref: u16,
-    ) -> FrameJobWriteVarBuilder {
-        FrameJobWriteVarBuilder::default()
-            .pdu_ref(pdu_ref)
+    pub fn job_write_var(pdu_ref: u16) -> FrameJobWriteVarBuilder {
+        FrameJobWriteVarBuilder::default().pdu_ref(pdu_ref)
     }
 
-    pub fn job_read_var(
-        pdu_ref: u16,
-    ) -> FrameJobReadVarBuilder {
-        FrameJobReadVarBuilder::default()
-            .pdu_ref(pdu_ref)
+    pub fn job_read_var(pdu_ref: u16) -> FrameJobReadVarBuilder {
+        FrameJobReadVarBuilder::default().pdu_ref(pdu_ref)
     }
 }
 
@@ -63,11 +51,7 @@ impl Default for Header {
 }
 
 impl Header {
-    pub fn init(
-        pdu_ref: u16,
-        parameter_len: u16,
-        data_len: u16,
-    ) -> Self {
+    pub fn init(pdu_ref: u16, parameter_len: u16, data_len: u16) -> Self {
         Self {
             protocol_id: 0x32,
             reserved: 0,
@@ -77,9 +61,7 @@ impl Header {
         }
     }
 
-    pub(crate) fn decode(
-        src: &mut BytesMut,
-    ) -> Self {
+    pub(crate) fn decode(src: &mut BytesMut) -> Self {
         let protocol_id = src.get_u8();
         src.get_u8();
         let reserved = src.get_u16();
@@ -127,9 +109,7 @@ impl HearderAckData {
         }
     }
 
-    pub(crate) fn decode(
-        src: &mut BytesMut,
-    ) -> Self {
+    pub(crate) fn decode(src: &mut BytesMut) -> Self {
         let protocol_id = src.get_u8();
         src.get_u8();
         let reserved = src.get_u16();
@@ -171,64 +151,41 @@ pub enum Job {
 }
 
 impl Job {
-    pub(crate) fn decode(
-        src: &mut BytesMut,
-    ) -> Result<Self> {
+    pub(crate) fn decode(src: &mut BytesMut) -> Result<Self> {
         let function = src.get_u8();
         match function {
             0x04 => {
                 let count = src.get_u8();
-                let mut parameters_item =
-                    Vec::with_capacity(
-                        count as usize,
-                    );
+                let mut parameters_item = Vec::with_capacity(count as usize);
                 for _ in 0..count {
-                    parameters_item.push(
-                        ItemRequest::decode(src)?,
-                    );
+                    parameters_item.push(ItemRequest::decode(src)?);
                 }
                 Ok(Self::ReadVar(ReadVarJob {
                     count: 0,
                     parameters_item,
                 }))
-            },
+            }
             0x05 => {
                 let count = src.get_u8();
-                let mut parameters_item =
-                    Vec::with_capacity(
-                        count as usize,
-                    );
+                let mut parameters_item = Vec::with_capacity(count as usize);
                 for _ in 0..count {
-                    parameters_item.push(
-                        ItemRequest::decode(src)?,
-                    );
+                    parameters_item.push(ItemRequest::decode(src)?);
                 }
-                let mut data_item =
-                    Vec::with_capacity(
-                        count as usize,
-                    );
+                let mut data_item = Vec::with_capacity(count as usize);
                 for _ in 0..count {
-                    data_item.push(
-                        DataItemVal::decode(src)?,
-                    );
+                    data_item.push(DataItemVal::decode(src)?);
                 }
                 Ok(Self::WriteVar(WriteVarJob {
                     count: 0,
                     parameters_item,
                     data_item,
                 }))
-            },
+            }
             0xf0 => {
-                let data =
-                    SetupCommunication::decode(
-                        src,
-                    )?;
+                let data = SetupCommunication::decode(src)?;
                 Ok(Self::SetupCommunication(data))
-            },
-            _ => Err(Error::Error(format!(
-                "not support function: {}",
-                function
-            ))),
+            }
+            _ => Err(Error::Other(format!("not support function: {}", function))),
         }
     }
 }
@@ -244,29 +201,17 @@ pub enum AckData {
 }
 
 impl AckData {
-    pub(crate) fn decode(
-        src: &mut BytesMut,
-    ) -> Result<Self> {
+    pub(crate) fn decode(src: &mut BytesMut) -> Result<Self> {
         let function = src.get_u8();
         match function {
             0x04 => {
                 let count = src.get_u8();
-                let mut data_item =
-                    Vec::with_capacity(
-                        count as usize,
-                    );
+                let mut data_item = Vec::with_capacity(count as usize);
                 for _ in 0..count {
-                    data_item.push(
-                        DataItemVal::decode(src)?,
-                    );
+                    data_item.push(DataItemVal::decode(src)?);
                 }
-                Ok(Self::ReadVar(
-                    ReadVarAckData {
-                        count,
-                        data_item,
-                    },
-                ))
-            },
+                Ok(Self::ReadVar(ReadVarAckData { count, data_item }))
+            }
             0x05 => {
                 let count = src.get_u8();
                 // let mut parameters_item =
@@ -276,31 +221,17 @@ impl AckData {
                 //     parameters_item.
                 // push(ItemRequest::decode(src)?
                 // ); }
-                let mut data_item =
-                    Vec::with_capacity(
-                        count as usize,
-                    );
+                let mut data_item = Vec::with_capacity(count as usize);
                 for _ in 0..count {
                     data_item.push(DataItemWriteResponse::decode(src)?);
                 }
-                Ok(Self::WriteVar(
-                    WriteVarAckData {
-                        count,
-                        data_item,
-                    },
-                ))
-            },
+                Ok(Self::WriteVar(WriteVarAckData { count, data_item }))
+            }
             0xf0 => {
-                let data =
-                    SetupCommunication::decode(
-                        src,
-                    )?;
+                let data = SetupCommunication::decode(src)?;
                 Ok(Self::SetupCommunication(data))
-            },
-            _ => Err(Error::Error(format!(
-                "not support function: {}",
-                function
-            ))),
+            }
+            _ => Err(Error::Other(format!("not support function: {}", function))),
         }
     }
 }
@@ -315,9 +246,7 @@ pub struct WriteVarJob {
 
 impl WriteVarJob {
     pub fn bytes_len_data(&self) -> u16 {
-        self.data_item
-            .iter()
-            .fold(0, |len, x| len + x.bytes_len())
+        self.data_item.iter().fold(0, |len, x| len + x.bytes_len())
     }
 
     pub fn bytes_len_parameter(&self) -> u16 {
@@ -326,26 +255,16 @@ impl WriteVarJob {
             .fold(2, |len, x| len + x.bytes_len())
     }
 
-    pub fn add_item(
-        &mut self,
-        x: (ItemRequest, DataItemVal),
-    ) {
+    pub fn add_item(&mut self, x: (ItemRequest, DataItemVal)) {
         self.count += 1;
         self.parameters_item.push(x.0);
         self.data_item.push(x.1);
     }
 
-    pub(crate) fn encode(
-        self,
-        dst: &mut BytesMut,
-    ) {
+    pub(crate) fn encode(self, dst: &mut BytesMut) {
         dst.put_u8(self.count);
-        self.parameters_item
-            .into_iter()
-            .for_each(|x| x.encode(dst));
-        self.data_item
-            .into_iter()
-            .for_each(|x| x.encode(dst));
+        self.parameters_item.into_iter().for_each(|x| x.encode(dst));
+        self.data_item.into_iter().for_each(|x| x.encode(dst));
     }
 }
 
@@ -356,29 +275,19 @@ pub struct WriteVarAckData {
 }
 
 impl WriteVarAckData {
-    pub fn data_item(
-        self,
-    ) -> Vec<DataItemWriteResponse> {
+    pub fn data_item(self) -> Vec<DataItemWriteResponse> {
         self.data_item
     }
 
-    pub fn add_response(
-        mut self,
-        response: DataItemWriteResponse,
-    ) -> Self {
+    pub fn add_response(mut self, response: DataItemWriteResponse) -> Self {
         self.count += 1;
         self.data_item.push(response);
         self
     }
 
-    pub(crate) fn encode(
-        self,
-        dst: &mut BytesMut,
-    ) {
+    pub(crate) fn encode(self, dst: &mut BytesMut) {
         dst.put_u8(self.count);
-        self.data_item
-            .into_iter()
-            .for_each(|x| x.encode(dst));
+        self.data_item.into_iter().for_each(|x| x.encode(dst));
     }
 }
 
@@ -403,14 +312,9 @@ impl ReadVarJob {
         self.parameters_item.push(x);
     }
 
-    pub(crate) fn encode(
-        self,
-        dst: &mut BytesMut,
-    ) {
+    pub(crate) fn encode(self, dst: &mut BytesMut) {
         dst.put_u8(self.count);
-        self.parameters_item
-            .into_iter()
-            .for_each(|x| x.encode(dst));
+        self.parameters_item.into_iter().for_each(|x| x.encode(dst));
     }
 }
 
@@ -424,23 +328,15 @@ impl ReadVarAckData {
         self.data_item
     }
 
-    pub fn add_response(
-        mut self,
-        value: DataItemVal,
-    ) -> Self {
+    pub fn add_response(mut self, value: DataItemVal) -> Self {
         self.count += 1;
         self.data_item.push(value);
         self
     }
 
-    pub(crate) fn encode(
-        self,
-        dst: &mut BytesMut,
-    ) {
+    pub(crate) fn encode(self, dst: &mut BytesMut) {
         dst.put_u8(self.count);
-        self.data_item
-            .into_iter()
-            .for_each(|x| x.encode(dst));
+        self.data_item.into_iter().for_each(|x| x.encode(dst));
     }
 }
 
@@ -453,11 +349,7 @@ pub struct SetupCommunication {
 }
 
 impl SetupCommunication {
-    pub fn init(
-        max_amq_calling: u16,
-        max_amq_called: u16,
-        pdu_length: u16,
-    ) -> Self {
+    pub fn init(max_amq_calling: u16, max_amq_called: u16, pdu_length: u16) -> Self {
         Self {
             reserved: 0,
             max_amq_calling,
@@ -470,33 +362,16 @@ impl SetupCommunication {
         7
     }
 
-    pub(crate) fn encode(
-        self,
-        dst: &mut BytesMut,
-    ) {
+    pub(crate) fn encode(self, dst: &mut BytesMut) {
         dst.put_u8(self.reserved);
-        dst.extend_from_slice(
-            self.max_amq_calling
-                .to_be_bytes()
-                .as_slice(),
-        );
-        dst.extend_from_slice(
-            self.max_amq_called
-                .to_be_bytes()
-                .as_slice(),
-        );
-        dst.extend_from_slice(
-            self.pdu_length
-                .to_be_bytes()
-                .as_slice(),
-        );
+        dst.extend_from_slice(self.max_amq_calling.to_be_bytes().as_slice());
+        dst.extend_from_slice(self.max_amq_called.to_be_bytes().as_slice());
+        dst.extend_from_slice(self.pdu_length.to_be_bytes().as_slice());
     }
 
-    fn decode(
-        src: &mut BytesMut,
-    ) -> Result<Self> {
+    fn decode(src: &mut BytesMut) -> Result<Self> {
         if src.len() < Self::len() {
-            return Err(Error::Error(
+            return Err(Error::Other(
                 "data of SetupCommunication not \
                  enough"
                     .to_string(),
@@ -544,10 +419,8 @@ impl ItemRequest {
         length: u16,
     ) -> Self {
         Self {
-            variable_specification:
-                PARAM_ITEM_VAR_SPEC,
-            follow_length:
-                PARAM_ITEM_VAR_SPEC_LENGTH,
+            variable_specification: PARAM_ITEM_VAR_SPEC,
+            follow_length: PARAM_ITEM_VAR_SPEC_LENGTH,
             syntax_id: Syntax::S7Any,
             transport_size_type,
             length,
@@ -613,25 +486,17 @@ impl ItemRequest {
     }
     */
 
-    pub fn init_byte(
-        db_number: Option<u16>,
-        area: Area,
-        byte_addr: u16,
-        length: u16,
-    ) -> Self {
+    pub fn init_byte(db_number: Option<u16>, area: Area, byte_addr: u16, length: u16) -> Self {
         let db_number = match db_number {
             Some(x) => DbNumber::DbNumber(x),
             None => DbNumber::NotIn,
         };
 
         Self {
-            variable_specification:
-                PARAM_ITEM_VAR_SPEC,
-            follow_length:
-                PARAM_ITEM_VAR_SPEC_LENGTH,
+            variable_specification: PARAM_ITEM_VAR_SPEC,
+            follow_length: PARAM_ITEM_VAR_SPEC_LENGTH,
             syntax_id: Syntax::S7Any,
-            transport_size_type:
-                TransportSize::NoBit,
+            transport_size_type: TransportSize::NoBit,
             length,
             db_number,
             area,
@@ -642,25 +507,17 @@ impl ItemRequest {
         }
     }
 
-    pub fn init_bit(
-        db_number: Option<u16>,
-        area: Area,
-        byte_addr: u16,
-        bit_addr: u8,
-    ) -> Self {
+    pub fn init_bit(db_number: Option<u16>, area: Area, byte_addr: u16, bit_addr: u8) -> Self {
         let db_number = match db_number {
             Some(x) => DbNumber::DbNumber(x),
             None => DbNumber::NotIn,
         };
 
         Self {
-            variable_specification:
-                PARAM_ITEM_VAR_SPEC,
-            follow_length:
-                PARAM_ITEM_VAR_SPEC_LENGTH,
+            variable_specification: PARAM_ITEM_VAR_SPEC,
+            follow_length: PARAM_ITEM_VAR_SPEC_LENGTH,
             syntax_id: Syntax::S7Any,
-            transport_size_type:
-                TransportSize::Bit,
+            transport_size_type: TransportSize::Bit,
             length: 1,
             db_number,
             area,
@@ -679,43 +536,27 @@ impl ItemRequest {
         dst.put_u8(self.variable_specification);
         dst.put_u8(self.follow_length);
         dst.put_u8(self.syntax_id.into());
-        dst.put_u8(
-            self.transport_size_type.into(),
-        );
-        dst.extend_from_slice(
-            self.length.to_be_bytes().as_slice(),
-        );
+        dst.put_u8(self.transport_size_type.into());
+        dst.extend_from_slice(self.length.to_be_bytes().as_slice());
         dst.put_u16(self.db_number.into());
         dst.put_u8(self.area.into());
-        dst.extend_from_slice(
-            self.address.to_bytes().as_slice(),
-        );
+        dst.extend_from_slice(self.address.to_bytes().as_slice());
     }
 
-    fn decode(
-        src: &mut BytesMut,
-    ) -> Result<Self> {
+    fn decode(src: &mut BytesMut) -> Result<Self> {
         if src.len() < 12 {
-            return Err(Error::Error(
-                "item request byte's length is not enough"
-                    .to_string(),
+            return Err(Error::Other(
+                "item request byte's length is not enough".to_string(),
             ));
         }
         let variable_specification = src.get_u8();
         let follow_length = src.get_u8();
-        let syntax_id =
-            Syntax::from(src.get_u8());
-        let transport_size_type =
-            TransportSize::from(src.get_u8());
+        let syntax_id = Syntax::from(src.get_u8());
+        let transport_size_type = TransportSize::from(src.get_u8());
         let length = src.get_u16();
-        let db_number =
-            DbNumber::from(src.get_u16());
+        let db_number = DbNumber::from(src.get_u16());
         let area = Area::from(src.get_u8());
-        let address = Address::from_bytes(
-            src.get_u8(),
-            src.get_u8(),
-            src.get_u8(),
-        );
+        let address = Address::from_bytes(src.get_u8(), src.get_u8(), src.get_u8());
         Ok(Self {
             variable_specification,
             follow_length,
@@ -743,19 +584,12 @@ impl DataItemWriteResponse {
         dst.put_u8(self.return_code.into());
     }
 
-    fn decode(
-        src: &mut BytesMut,
-    ) -> Result<Self> {
+    fn decode(src: &mut BytesMut) -> Result<Self> {
         if src.len() == 0 {
-            return Err(Error::Error(
-                "byte's length is zero"
-                    .to_string(),
-            ));
+            return Err(Error::Other("byte's length is zero".to_string()));
         }
         Ok(Self {
-            return_code: ReturnCode::try_from(
-                src.get_u8(),
-            )?,
+            return_code: ReturnCode::try_from(src.get_u8())?,
         })
     }
 }
@@ -769,33 +603,21 @@ pub struct DataItemVal {
 }
 
 impl DataItemVal {
-    pub fn init_with_bytes(
-        return_code: ReturnCode,
-        data: &[u8],
-    ) -> Self {
+    pub fn init_with_bytes(return_code: ReturnCode, data: &[u8]) -> Self {
         Self {
             return_code,
-            transport_size_type:
-                DataTransportSize::NoBit,
+            transport_size_type: DataTransportSize::NoBit,
             length: (data.len() as u16) << 3,
             data: data.to_vec(),
         }
     }
 
-    pub fn init_with_bit(
-        return_code: ReturnCode,
-        data: bool,
-    ) -> Self {
+    pub fn init_with_bit(return_code: ReturnCode, data: bool) -> Self {
         Self {
             return_code,
-            transport_size_type:
-                DataTransportSize::Bit,
+            transport_size_type: DataTransportSize::Bit,
             length: 1,
-            data: if data {
-                vec![1]
-            } else {
-                vec![0]
-            },
+            data: if data { vec![1] } else { vec![0] },
         }
     }
 
@@ -805,47 +627,36 @@ impl DataItemVal {
 
     fn encode(self, dst: &mut BytesMut) {
         dst.put_u8(self.return_code.into());
-        dst.put_u8(
-            self.transport_size_type.into(),
-        );
-        dst.extend_from_slice(
-            self.length.to_be_bytes().as_slice(),
-        );
-        dst.extend_from_slice(
-            self.data.as_slice(),
-        );
+        dst.put_u8(self.transport_size_type.into());
+        dst.extend_from_slice(self.length.to_be_bytes().as_slice());
+        dst.extend_from_slice(self.data.as_slice());
     }
 
-    fn decode(
-        src: &mut BytesMut,
-    ) -> Result<Self> {
+    fn decode(src: &mut BytesMut) -> Result<Self> {
         if src.len() < 4 {
-            return Err(Error::Error(
-                format!("data item val byte's length is not enough: {}"
-                    , src.len()),
-            ));
+            return Err(Error::Other(format!(
+                "data item val byte's length is not enough: {}",
+                src.len()
+            )));
         }
-        let return_code =
-            ReturnCode::try_from(src.get_u8())?;
-        let transport_size_type =
-            DataTransportSize::from(src.get_u8());
+        let return_code = ReturnCode::try_from(src.get_u8())?;
+        let transport_size_type = DataTransportSize::from(src.get_u8());
         let length = src.get_u16();
         let mut bytes_len = length as usize;
 
-        if transport_size_type
-            == DataTransportSize::NoBit
-        {
+        if transport_size_type == DataTransportSize::NoBit {
             bytes_len >>= 3;
         }
 
         let fill_byte_len = bytes_len % 2;
         if src.len() < bytes_len {
-            return Err(Error::Error(
-                format!("data item val byte's length is not enough: {} < {}", src.len(), bytes_len),
-            ));
+            return Err(Error::Other(format!(
+                "data item val byte's length is not enough: {} < {}",
+                src.len(),
+                bytes_len
+            )));
         }
-        let mut data =
-            Vec::with_capacity(bytes_len);
+        let mut data = Vec::with_capacity(bytes_len);
         for _ in 0..bytes_len {
             data.push(src.get_u8())
         }
@@ -861,14 +672,7 @@ impl DataItemVal {
     }
 }
 
-#[derive(
-    Debug,
-    Clone,
-    IntoPrimitive,
-    TryFromPrimitive,
-    Eq,
-    PartialEq,
-)]
+#[derive(Debug, Clone, IntoPrimitive, TryFromPrimitive, Eq, PartialEq)]
 #[repr(u8)]
 pub enum ReturnCode {
     /// 0
@@ -895,15 +699,7 @@ impl ReturnCode {
     }
 }
 
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    IntoPrimitive,
-    Eq,
-    FromPrimitive,
-    PartialEq,
-)]
+#[derive(Debug, Copy, Clone, IntoPrimitive, Eq, FromPrimitive, PartialEq)]
 #[repr(u8)]
 pub enum TransportType {
     Bit = 0,
@@ -915,15 +711,7 @@ pub enum TransportType {
     NotSupport(u8),
 }
 
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    IntoPrimitive,
-    Eq,
-    FromPrimitive,
-    PartialEq,
-)]
+#[derive(Debug, Copy, Clone, IntoPrimitive, Eq, FromPrimitive, PartialEq)]
 #[repr(u8)]
 pub enum DataTransportSize {
     Bit = 0x03,
@@ -932,15 +720,7 @@ pub enum DataTransportSize {
     NotSupport(u8),
 }
 
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    IntoPrimitive,
-    Eq,
-    FromPrimitive,
-    PartialEq,
-)]
+#[derive(Debug, Copy, Clone, IntoPrimitive, Eq, FromPrimitive, PartialEq)]
 #[repr(u8)]
 pub enum TransportSize {
     Bit = 0x01,
@@ -949,13 +729,7 @@ pub enum TransportSize {
     NotSupport(u8),
 }
 
-#[derive(
-    Debug,
-    IntoPrimitive,
-    FromPrimitive,
-    Eq,
-    PartialEq,
-)]
+#[derive(Debug, IntoPrimitive, FromPrimitive, Eq, PartialEq)]
 #[repr(u8)]
 pub enum Area {
     ProcessInput = 0x81,
@@ -968,26 +742,14 @@ pub enum Area {
     NotSupport(u8),
 }
 
-#[derive(
-    Debug,
-    IntoPrimitive,
-    FromPrimitive,
-    Eq,
-    PartialEq,
-)]
+#[derive(Debug, IntoPrimitive, FromPrimitive, Eq, PartialEq)]
 #[repr(u8)]
 pub enum Syntax {
     S7Any = 0x10,
     #[num_enum(catch_all)]
     NotSupport(u8),
 }
-#[derive(
-    Debug,
-    IntoPrimitive,
-    FromPrimitive,
-    Eq,
-    PartialEq,
-)]
+#[derive(Debug, IntoPrimitive, FromPrimitive, Eq, PartialEq)]
 #[repr(u16)]
 pub enum DbNumber {
     NotIn = 0,
@@ -1002,8 +764,7 @@ pub struct Address {
 
 impl Address {
     pub fn to_bytes(&self) -> [u8; 3] {
-        let [byte_0, byte_1] =
-            self.byte_addr.to_be_bytes();
+        let [byte_0, byte_1] = self.byte_addr.to_be_bytes();
         [
             byte_0 >> 5,
             byte_0 << 3 | byte_1 >> 5,
@@ -1011,17 +772,11 @@ impl Address {
         ]
     }
 
-    pub fn from_bytes(
-        index_0: u8,
-        index_1: u8,
-        index_2: u8,
-    ) -> Self {
+    pub fn from_bytes(index_0: u8, index_1: u8, index_2: u8) -> Self {
         let index_0 = index_0 << 5 | index_1 >> 3;
         let index_1 = index_1 << 5 | index_2 >> 3;
 
-        let byte_addr = u16::from_be_bytes([
-            index_0, index_1,
-        ]);
+        let byte_addr = u16::from_be_bytes([index_0, index_1]);
         let bit_addr = index_2 & 0b0000_0111;
         Self {
             byte_addr,

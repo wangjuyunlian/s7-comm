@@ -1,10 +1,10 @@
-use crate::{
-    builder::ConnectBuilder, error::*,
-    DtDataBuilder,
-};
-use bytes::{Buf, BufMut, BytesMut};
-use num_enum::{IntoPrimitive, TryFromPrimitive};
 use std::fmt::Debug;
+
+use bytes::{Buf, BufMut, BytesMut};
+
+use crate::builder::ConnectBuilder;
+use crate::error::{Error, Result};
+use crate::{DtDataBuilder, Parameter};
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct CoptFrame<F: Debug + Eq + PartialEq> {
@@ -12,14 +12,11 @@ pub struct CoptFrame<F: Debug + Eq + PartialEq> {
 }
 
 impl<F: Debug + Eq + PartialEq> CoptFrame<F> {
-    pub fn builder_of_dt_data(
-        payload: F,
-    ) -> DtDataBuilder<F> {
+    pub fn builder_of_dt_data(payload: F) -> DtDataBuilder<F> {
         DtDataBuilder::new(payload)
     }
 
-    pub fn builder_of_connect(
-    ) -> ConnectBuilder<F> {
+    pub fn builder_of_connect() -> ConnectBuilder<F> {
         ConnectBuilder::<F>::default()
     }
 
@@ -41,16 +38,13 @@ pub enum PduType<F: Debug + Eq + PartialEq> {
 impl<F: Debug + Eq + PartialEq> PduType<F> {
     pub fn length(&self) -> u8 {
         match self {
-            PduType::ConnectRequest(conn) => {
-                conn.length()
-            },
-            PduType::ConnectConfirm(conn) => {
-                conn.length()
-            },
+            PduType::ConnectRequest(conn) => conn.length(),
+            PduType::ConnectConfirm(conn) => conn.length(),
             PduType::DtData(_) => 2,
         }
     }
 }
+
 #[derive(Debug, Eq, PartialEq)]
 pub struct DtData<F: Debug + Eq + PartialEq> {
     pub(crate) tpdu_number: u8,
@@ -84,39 +78,24 @@ pub struct ConnectComm {
 
 impl ConnectComm {
     pub fn length(&self) -> u8 {
-        6 + self
-            .parameters
-            .iter()
-            .fold(0, |x, item| x + item.length())
+        6 + self.parameters.iter().fold(0, |x, item| x + item.length())
     }
 
-    pub(crate) fn decode(
-        src: &mut BytesMut,
-    ) -> Result<Self> {
+    pub(crate) fn decode(src: &mut BytesMut) -> Result<Self> {
         if src.len() < 5 {
-            return Err(Error::Error(
-                "data not enough".to_string(),
-            ));
+            return Err(Error::Other("data not enough".to_string()));
         }
-        let destination_ref =
-            [src.get_u8(), src.get_u8()];
-        let source_ref =
-            [src.get_u8(), src.get_u8()];
+
+        let destination_ref = [src.get_u8(), src.get_u8()];
+        let source_ref = [src.get_u8(), src.get_u8()];
         let merge = src.get_u8();
         let class = merge >> 4;
-        let extended_formats =
-            merge << 6 >> 7 > 0;
-        let no_explicit_flow_control =
-            merge & 1 > 0;
+        let extended_formats = merge << 6 >> 7 > 0;
+        let no_explicit_flow_control = merge & 1 > 0;
 
         let mut parameters = Vec::new();
-        while src.len() > 0 {
-            match Parameter::decode(src)? {
-                Some(parameter) => {
-                    parameters.push(parameter);
-                },
-                None => continue,
-            }
+        while let Some(parameter) = Parameter::decode(src)? {
+            parameters.push(parameter);
         }
 
         Ok(Self {
@@ -129,181 +108,70 @@ impl ConnectComm {
         })
     }
 
-    pub(crate) fn encode(
-        &self,
-        dst: &mut BytesMut,
-    ) {
-        dst.put_slice(
-            self.destination_ref.as_ref(),
-        );
+    pub(crate) fn encode(&self, dst: &mut BytesMut) {
+        dst.put_slice(self.destination_ref.as_ref());
         dst.put_slice(self.source_ref.as_ref());
 
         let merge = self.class << 4
-            & if self.extended_formats {
-                2
-            } else {
-                0
-            }
-            & if self.no_explicit_flow_control {
-                1
-            } else {
-                0
-            };
+            & if self.extended_formats { 2 } else { 0 }
+            & if self.no_explicit_flow_control { 1 } else { 0 };
+
         dst.put_u8(merge);
-        self.parameters
-            .iter()
-            .for_each(|x| x.encode(dst));
+
+        self.parameters.iter().for_each(|x| x.encode(dst));
     }
 }
 
-/// https://datatracker.ietf.org/doc/html/rfc905 13.3.4
-#[derive(Debug, Eq, PartialEq)]
-pub enum Parameter {
-    /// 0xc0
-    ///            0000 1101  8192 octets (not
-    /// allowed in Class 0)
-    //             0000 1100  4096 octets (not
-    // allowed in Class 0)             0000
-    // 1011  2048 octets             0000
-    // 1010  1024 octets             0000
-    // 1001   512 octets             0000
-    // 1000   256 octets             0000
-    // 0111   128 octets
-    TpduSize(TpduSize),
-    /// 0xc1    todo?
-    SrcTsap(Vec<u8>),
-    /// 0xc2    todo?
-    DstTsap(Vec<u8>),
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bytes::BytesMut;
 
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    Eq,
-    PartialEq,
-    TryFromPrimitive,
-    IntoPrimitive,
-)]
-#[repr(u8)]
-pub enum TpduSize {
-    L8192 = 0b0000_1101,
-    L4096 = 0b0000_1100,
-    L2048 = 0b0000_1011,
-    L1024 = 0b0000_1010,
-    L512 = 0b0000_1001,
-    L256 = 0b0000_1000,
-    L128 = 0b0000_0111,
-}
+    #[test]
+    fn test_normal_copt_encode_decode() {
+        let mut data = BytesMut::new();
+        data.extend_from_slice(&[
+            0x00, 0x01, 0x00, 0x02, 0x00, 0xc0, 0x01, 0x0a, 0xc1, 0x02, 0x01, 0x00,
+        ]);
 
-impl TpduSize {
-    pub fn pdu_ref(&self) -> u16 {
-        match self {
-            TpduSize::L8192 => 8192,
-            TpduSize::L4096 => 4096,
-            TpduSize::L2048 => 2048,
-            TpduSize::L1024 => 1024,
-            TpduSize::L512 => 512,
-            TpduSize::L256 => 256,
-            TpduSize::L128 => 128,
-        }
-    }
-}
+        let copt_frame = ConnectComm::decode(&mut data).unwrap();
+        assert_eq!(copt_frame.length(), 13);
+        assert_eq!(copt_frame.destination_ref, [0x00, 0x01]);
+        assert_eq!(copt_frame.source_ref, [0x00, 0x02]);
+        assert_eq!(copt_frame.class, 0);
+        assert_eq!(copt_frame.extended_formats, false);
+        assert_eq!(copt_frame.no_explicit_flow_control, false);
+        assert_eq!(copt_frame.parameters.len(), 2);
 
-impl Parameter {
-    pub fn new_dst_tsap(data: Vec<u8>) -> Self {
-        Self::DstTsap(data)
+        let parameters = vec![
+            Parameter::TpduSize(crate::TpduSize::L1024),
+            Parameter::SrcTsap(vec![0x01, 0x00]),
+        ];
+        assert_eq!(copt_frame.parameters, parameters);
     }
 
-    pub fn new_src_tsap(data: Vec<u8>) -> Self {
-        Self::SrcTsap(data)
-    }
+    #[test]
+    fn test_unusual_copt_encode_decode() {
+        let mut data = BytesMut::new();
+        data.extend_from_slice(&[
+            0x00, 0x01, 0x00, 0x02, 0x00, 0x02, 0x01, 0x01, 0xc0, 0x01, 0x0a, 0xc1, 0x02, 0x01,
+            0x00, 0xc2,
+        ]);
 
-    pub fn new_tpdu_size(size: TpduSize) -> Self {
-        Self::TpduSize(size)
-    }
+        let copt_frame = ConnectComm::decode(&mut data).unwrap();
+        assert_eq!(copt_frame.length(), 13);
+        assert_eq!(copt_frame.destination_ref, [0x00, 0x01]);
+        assert_eq!(copt_frame.source_ref, [0x00, 0x02]);
+        assert_eq!(copt_frame.class, 0);
+        assert_eq!(copt_frame.extended_formats, false);
+        assert_eq!(copt_frame.no_explicit_flow_control, false);
+        assert_eq!(copt_frame.parameters.len(), 3);
 
-    pub fn length(&self) -> u8 {
-        match self {
-            Parameter::TpduSize(_) => 3u8,
-            Parameter::SrcTsap(data) => {
-                2 + data.len() as u8
-            },
-            Parameter::DstTsap(data) => {
-                2 + data.len() as u8
-            },
-        }
-    }
-
-    fn decode(
-        dst: &mut BytesMut,
-    ) -> Result<Option<Self>> {
-        if dst.len() == 0 {
-            return Ok(None);
-        }
-
-        let (Some(ty), Some(length)) =
-            (dst.get(0), dst.get(1))
-        else {
-            return Err(Error::Error(
-                "data not enough".to_string(),
-            ));
-        };
-
-        let length = (length + 2) as usize;
-        let ty = *ty;
-        if dst.len() < length {
-            return Err(Error::Error(
-                "data not enough".to_string(),
-            ));
-        }
-
-        let mut data =
-            dst.split_to(length).split_off(2);
-
-        match ty {
-            0xc0 => {
-                let size = data.get_u8();
-                Ok(Some(Self::TpduSize(
-                    size.try_into()?,
-                )))
-            },
-            0xc1 => Ok(Some(Self::SrcTsap(
-                data.to_vec(),
-            ))),
-            0xc2 => Ok(Some(Self::DstTsap(
-                data.to_vec(),
-            ))),
-            0x02 => Ok(None),
-            _ => {
-                return Err(Error::Error(
-                    format!("unknown parameter type: {}", ty),
-                ));
-            },
-        }
-    }
-
-    fn encode(&self, dst: &mut BytesMut) {
-        match self {
-            Parameter::TpduSize(data) => {
-                dst.put_u8(0xc0);
-                dst.put_u8(1u8);
-                dst.put_u8(data.clone().into())
-            },
-            Parameter::SrcTsap(data) => {
-                dst.put_u8(0xc1);
-                dst.put_u8(data.len() as u8);
-                dst.extend_from_slice(
-                    data.as_ref(),
-                )
-            },
-            Parameter::DstTsap(data) => {
-                dst.put_u8(0xc2);
-                dst.put_u8(data.len() as u8);
-                dst.extend_from_slice(
-                    data.as_ref(),
-                )
-            },
-        }
+        let parameters = vec![
+            Parameter::Unknown,
+            Parameter::TpduSize(crate::TpduSize::L1024),
+            Parameter::SrcTsap(vec![0x01, 0x00]),
+        ];
+        assert_eq!(copt_frame.parameters, parameters);
     }
 }
