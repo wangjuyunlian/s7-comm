@@ -3,20 +3,11 @@ use std::{
     time::Duration,
 };
 
-use crate::{
-    build_copt_connect_request, build_s7_read,
-    build_s7_setup, build_s7_write, error::*,
-};
+use crate::{build_copt_connect_request, build_s7_read, build_s7_setup, build_s7_write, error::*};
 use bytes::BytesMut;
-use copt::{
-    CoptDecoder, CoptFrame, Parameter, PduType,
-    TpduSize,
-};
+use copt::{CoptDecoder, CoptFrame, Parameter, PduType, TpduSize};
 use log::debug;
-use s7_comm::{
-    AckData, DataItemVal, DataItemWriteResponse,
-    Frame, S7CommDecoder,
-};
+use s7_comm::{AckData, DataItemVal, DataItemWriteResponse, Frame, S7CommDecoder};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
@@ -37,86 +28,83 @@ pub struct S7Client {
 }
 
 impl S7Client {
-    pub async fn connect(
-        options: Options,
-    ) -> Result<Self> {
+    pub async fn connect(options: Options) -> Result<Self> {
         let connect =
-            tokio::net::TcpStream::connect(
-                SocketAddr::new(
-                    options.address,
-                    options.port,
-                ),
-            )
-            .await?;
-        let mut client =
-            Self { options, connect };
+            tokio::net::TcpStream::connect(SocketAddr::new(options.address, options.port))
+                .await
+                .map_err(|e| Error::Other(format!("failed to tcp connect: {}", e)))?;
+
+        let mut client = Self { options, connect };
         client.copt_connect().await?;
         client.s7_setup().await?;
         Ok(client)
     }
 
-    async fn copt_connect(
-        &mut self,
-    ) -> Result<()> {
-        let frame =
-            build_framed_copt_connect_request(
-                &self.options,
-            )?;
-        self.write_frame(frame).await?;
-        let frame =
-            self.read_frame().await?.payload();
-        if let PduType::ConnectConfirm(comm) =
-            &frame.pdu_type
-        {
+    async fn copt_connect(&mut self) -> Result<()> {
+        let frame = build_framed_copt_connect_request(&self.options).map_err(|e| {
+            Error::Other(format!(
+                "failed to build_framed_copt_connect_request: {:?}",
+                e
+            ))
+        })?;
+
+        self.write_frame(frame)
+            .await
+            .map_err(|e| Error::Other(format!("failed to copt write frame: {:?}", e)))?;
+
+        let frame = self
+            .read_frame()
+            .await
+            .map_err(|e| Error::Other(format!("failed to copt read frame: {:?}", e)))?
+            .payload();
+
+        if let PduType::ConnectConfirm(comm) = &frame.pdu_type {
             debug!("{:?}", comm);
             for item in &comm.parameters {
-                if let Parameter::TpduSize(size) =
-                    item
-                {
-                    self.options.tpdu_size =
-                        size.clone();
+                if let Parameter::TpduSize(size) = item {
+                    self.options.tpdu_size = size.clone();
                 }
             }
         } else {
-            return Err(Error::ConnectErr(
-                format!(
-                    "should recv connect \
+            return Err(Error::ConnectErr(format!(
+                "should recv connect \
                      confirm, but not {:?}",
-                    frame
-                ),
-            ));
+                frame
+            )));
         }
+
         Ok(())
     }
 
     async fn s7_setup(&mut self) -> Result<()> {
-        let frame =
-            build_framed_s7_setup(&self.options)?;
-        self.write_frame(frame).await?;
-        let frame =
-            self.read_frame().await?.payload();
-        if let PduType::DtData(comm) =
-            frame.pdu_type
-        {
-            if let Frame::AckData {
-                ack_data,
-                ..
-            } = comm.payload()
-            {
+        let frame = build_framed_s7_setup(&self.options)
+            .map_err(|e| Error::Other(format!("failed to build_framed_s7_setup: {:?}", e)))?;
+
+        self.write_frame(frame)
+            .await
+            .map_err(|e| Error::Other(format!("failed to write s7 setup frame: {:?}", e)))?;
+
+        let frame = self
+            .read_frame()
+            .await
+            .map_err(|e| Error::Other(format!("failed to read s7 setup frame: {:?}", e)))?
+            .payload();
+
+        if let PduType::DtData(comm) = frame.pdu_type {
+            if let Frame::AckData { ack_data, .. } = comm.payload() {
                 if let AckData::SetupCommunication(data) = ack_data {
-                        debug!("{:?}", data);
-                        self.options.pdu_len = data.pdu_length();
-                    }
+                    debug!("{:?}", data);
+                    self.options.pdu_len = data.pdu_length();
+                }
             }
         } else {
-            return Err(Error::ConnectErr(
-                format!(
-                    "should recv connect \
+            return Err(Error::ConnectErr(format!(
+                "should recv connect \
                      confirm, but not {:?}",
-                    frame
-                ),
-            ));
+                frame
+            )));
         }
+
         Ok(())
     }
 
@@ -128,12 +116,8 @@ impl S7Client {
         data: &[u8],
     ) -> Result<DataItemWriteResponse> {
         let frame = build_s7_write()
-            .pdu_ref(
-                self.options.tpdu_size.pdu_ref(),
-            )
-            .write_bytes(
-                db_number, area, byte_addr, data,
-            )
+            .pdu_ref(self.options.tpdu_size.pdu_ref())
+            .write_bytes(db_number, area, byte_addr, data)
             .build()?;
 
         let items = self.write(frame).await?;
@@ -156,13 +140,8 @@ impl S7Client {
         data: bool,
     ) -> Result<DataItemWriteResponse> {
         let frame = build_s7_write()
-            .pdu_ref(
-                self.options.tpdu_size.pdu_ref(),
-            )
-            .write_bit(
-                db_number, area, byte_addr,
-                bit_addr, data,
-            )
+            .pdu_ref(self.options.tpdu_size.pdu_ref())
+            .write_bit(db_number, area, byte_addr, bit_addr, data)
             .build()?;
         let items = self.write(frame).await?;
         if items.len() == 1 {
@@ -175,57 +154,27 @@ impl S7Client {
         }
     }
 
-    async fn write(
-        &mut self,
-        frame: BytesMut,
-    ) -> Result<Vec<DataItemWriteResponse>> {
+    async fn write(&mut self, frame: BytesMut) -> Result<Vec<DataItemWriteResponse>> {
         self.write_frame(frame).await?;
-        let frame =
-            self.read_frame().await?.payload();
-        if let PduType::DtData(comm) =
-            frame.pdu_type
-        {
-            if let Frame::AckData {
-                ack_data,
-                ..
-            } = comm.payload()
-            {
-                if let AckData::WriteVar(data) =
-                    ack_data
-                {
+        let frame = self.read_frame().await?.payload();
+        if let PduType::DtData(comm) = frame.pdu_type {
+            if let Frame::AckData { ack_data, .. } = comm.payload() {
+                if let AckData::WriteVar(data) = ack_data {
                     return Ok(data.data_item());
                 }
             }
         }
-        return Err(Error::Err(format!(
-            "should recv read var"
-        )));
+        return Err(Error::Err(format!("should recv read var")));
     }
 
-    pub async fn read(
-        &mut self,
-        area: &Area,
-    ) -> Result<DataItemVal> {
-        let frame = build_framed_s7_read(
-            &self.options,
-            &[*area],
-        )?;
+    pub async fn read(&mut self, area: &Area) -> Result<DataItemVal> {
+        let frame = build_framed_s7_read(&self.options, &[*area])?;
         self.write_frame(frame).await?;
-        let frame =
-            self.read_frame().await?.payload();
-        if let PduType::DtData(comm) =
-            frame.pdu_type
-        {
-            if let Frame::AckData {
-                ack_data,
-                ..
-            } = comm.payload()
-            {
-                if let AckData::ReadVar(data) =
-                    ack_data
-                {
-                    let data_item =
-                        data.data_item();
+        let frame = self.read_frame().await?.payload();
+        if let PduType::DtData(comm) = frame.pdu_type {
+            if let Frame::AckData { ack_data, .. } = comm.payload() {
+                if let AckData::ReadVar(data) = ack_data {
+                    let data_item = data.data_item();
                     if data_item.len() != 1 {
                         return Err(Error::Err(format!(
                             "should recv one item, \
@@ -234,70 +183,40 @@ impl S7Client {
                         )));
                     }
 
-                    return Ok(
-                        data_item[0].clone()
-                    );
+                    return Ok(data_item[0].clone());
                 }
             }
         }
-        return Err(Error::Err(format!(
-            "should recv read var"
-        )));
+        return Err(Error::Err(format!("should recv read var")));
     }
 
-    pub async fn read_vec(
-        &mut self,
-        areas: &[Area],
-    ) -> Result<Vec<DataItemVal>> {
-        let frame = build_framed_s7_read(
-            &self.options,
-            areas,
-        )?;
+    pub async fn read_vec(&mut self, areas: &[Area]) -> Result<Vec<DataItemVal>> {
+        let frame = build_framed_s7_read(&self.options, areas)?;
         self.write_frame(frame).await?;
-        let frame =
-            self.read_frame().await?.payload();
-        if let PduType::DtData(comm) =
-            frame.pdu_type
-        {
-            if let Frame::AckData {
-                ack_data,
-                ..
-            } = comm.payload()
-            {
-                if let AckData::ReadVar(data) =
-                    ack_data
-                {
+        let frame = self.read_frame().await?.payload();
+        if let PduType::DtData(comm) = frame.pdu_type {
+            if let Frame::AckData { ack_data, .. } = comm.payload() {
+                if let AckData::ReadVar(data) = ack_data {
                     return Ok(data.data_item());
                 }
             }
         }
-        return Err(Error::Err(format!(
-            "should recv read var"
-        )));
+        return Err(Error::Err(format!("should recv read var")));
     }
 
-    async fn write_frame(
-        &mut self,
-        framed: BytesMut,
-    ) -> Result<()> {
-        timeout(
-            self.options.write_timeout,
-            self.connect.write_all(&framed),
-        )
-        .await
-        .map_err(|_| Error::WriteTimeout)??;
+    async fn write_frame(&mut self, framed: BytesMut) -> Result<()> {
+        timeout(self.options.write_timeout, self.connect.write_all(&framed))
+            .await
+            .map_err(|_| Error::WriteTimeout)??;
         Ok(())
     }
 
-    async fn read_frame(
-        &mut self,
-    ) -> Result<TpktFrame<CoptFrame<Frame>>> {
-        Ok(timeout(
-            self.options.read_timeout,
-            read_framed(&mut self.connect),
+    async fn read_frame(&mut self) -> Result<TpktFrame<CoptFrame<Frame>>> {
+        Ok(
+            timeout(self.options.read_timeout, read_framed(&mut self.connect))
+                .await
+                .map_err(|_| Error::WriteTimeout)??,
         )
-        .await
-        .map_err(|_| Error::WriteTimeout)??)
     }
 }
 
@@ -315,18 +234,10 @@ pub struct Options {
 }
 
 impl Options {
-    pub fn new(
-        address: IpAddr,
-        port: u16,
-        conn_mode: ConnectMode,
-    ) -> Options {
+    pub fn new(address: IpAddr, port: u16, conn_mode: ConnectMode) -> Options {
         Self {
-            read_timeout: Duration::from_millis(
-                500,
-            ),
-            write_timeout: Duration::from_millis(
-                500,
-            ),
+            read_timeout: Duration::from_millis(500),
+            write_timeout: Duration::from_millis(500),
             port,
             address,
             conn_mode,
@@ -336,42 +247,37 @@ impl Options {
     }
 }
 
-async fn read_framed(
-    req: &mut TcpStream,
-) -> Result<TpktFrame<CoptFrame<Frame>>> {
+async fn read_framed(req: &mut TcpStream) -> Result<TpktFrame<CoptFrame<Frame>>> {
     let mut buf = [0u8; 1000];
     let mut bytes = BytesMut::new();
-    let mut decoder =
-        TpktDecoder(CoptDecoder(S7CommDecoder));
+    let mut decoder = TpktDecoder(CoptDecoder(S7CommDecoder));
+
     loop {
-        let size = req.read(&mut buf).await?;
-        bytes.extend_from_slice(
-            buf[0..size].as_ref(),
-        );
-        if let Some(frame) =
-            decoder.decode(&mut bytes)?
+        let size = req
+            .read(&mut buf)
+            .await
+            .map_err(|e| Error::Other(format!("failed to read Tpkt frame: {:?}", e)))?;
+
+        bytes.extend_from_slice(buf[0..size].as_ref());
+
+        if let Some(frame) = decoder
+            .decode(&mut bytes)
+            .map_err(|e| Error::Other(format!("failed to decode frame: {:?}", e)))?
         {
             return Ok(frame);
         }
     }
 }
 
-fn build_framed_s7_read(
-    options: &Options,
-    areas: &[Area],
-) -> Result<BytesMut> {
-    let mut builder = build_s7_read()
-        .pdu_ref(options.tpdu_size.pdu_ref());
+fn build_framed_s7_read(options: &Options, areas: &[Area]) -> Result<BytesMut> {
+    let mut builder = build_s7_read().pdu_ref(options.tpdu_size.pdu_ref());
     for area in areas {
-        builder =
-            builder.add_item((*area).into());
+        builder = builder.add_item((*area).into());
     }
     Ok(builder.build()?)
 }
 
-fn build_framed_copt_connect_request(
-    options: &Options,
-) -> Result<BytesMut> {
+fn build_framed_copt_connect_request(options: &Options) -> Result<BytesMut> {
     Ok(build_copt_connect_request()
         .source_ref([0, 1])
         .destination_ref([0, 0])
@@ -382,9 +288,7 @@ fn build_framed_copt_connect_request(
         .build_to_request()?)
 }
 
-fn build_framed_s7_setup(
-    options: &Options,
-) -> Result<BytesMut> {
+fn build_framed_s7_setup(options: &Options) -> Result<BytesMut> {
     Ok(build_s7_setup()
         .max_amq_called(1)
         .max_amq_calling(1)

@@ -18,12 +18,7 @@ pub struct S7CommDecoder;
 impl Encoder<Frame> for S7CommEncoder {
     type Error = Error;
 
-    fn encode(
-        &mut self,
-        item: Frame,
-        dst: &mut BytesMut,
-    ) -> std::result::Result<(), Self::Error>
-    {
+    fn encode(&mut self, item: Frame, dst: &mut BytesMut) -> std::result::Result<(), Self::Error> {
         match item {
             Frame::Job { header, job } => {
                 let Header {
@@ -35,47 +30,26 @@ impl Encoder<Frame> for S7CommEncoder {
                 } = header;
                 dst.put_u8(protocol_id);
                 dst.put_u8(0x01);
-                dst.extend_from_slice(
-                    reserved
-                        .to_be_bytes()
-                        .as_slice(),
-                );
-                dst.extend_from_slice(
-                    pdu_ref
-                        .to_be_bytes()
-                        .as_slice(),
-                );
-                dst.extend_from_slice(
-                    parameter_len
-                        .to_be_bytes()
-                        .as_slice(),
-                );
-                dst.extend_from_slice(
-                    data_len
-                        .to_be_bytes()
-                        .as_slice(),
-                );
+                dst.extend_from_slice(reserved.to_be_bytes().as_slice());
+                dst.extend_from_slice(pdu_ref.to_be_bytes().as_slice());
+                dst.extend_from_slice(parameter_len.to_be_bytes().as_slice());
+                dst.extend_from_slice(data_len.to_be_bytes().as_slice());
                 match job {
-                    Job::SetupCommunication(
-                        data,
-                    ) => {
+                    Job::SetupCommunication(data) => {
                         dst.put_u8(0xf0);
                         data.encode(dst);
-                    },
+                    }
                     Job::WriteVar(data) => {
                         dst.put_u8(0x05);
                         data.encode(dst);
-                    },
+                    }
                     Job::ReadVar(data) => {
                         dst.put_u8(0x04);
                         data.encode(dst);
-                    },
+                    }
                 }
-            },
-            Frame::AckData {
-                header,
-                ack_data,
-            } => {
+            }
+            Frame::AckData { header, ack_data } => {
                 let HearderAckData {
                     protocol_id,
                     reserved,
@@ -87,26 +61,10 @@ impl Encoder<Frame> for S7CommEncoder {
                 } = header;
                 dst.put_u8(protocol_id);
                 dst.put_u8(0x03);
-                dst.extend_from_slice(
-                    reserved
-                        .to_be_bytes()
-                        .as_slice(),
-                );
-                dst.extend_from_slice(
-                    pdu_ref
-                        .to_be_bytes()
-                        .as_slice(),
-                );
-                dst.extend_from_slice(
-                    parameter_len
-                        .to_be_bytes()
-                        .as_slice(),
-                );
-                dst.extend_from_slice(
-                    data_len
-                        .to_be_bytes()
-                        .as_slice(),
-                );
+                dst.extend_from_slice(reserved.to_be_bytes().as_slice());
+                dst.extend_from_slice(pdu_ref.to_be_bytes().as_slice());
+                dst.extend_from_slice(parameter_len.to_be_bytes().as_slice());
+                dst.extend_from_slice(data_len.to_be_bytes().as_slice());
                 dst.put_u8(error_class);
                 dst.put_u8(error_code);
                 match ack_data {
@@ -123,7 +81,7 @@ impl Encoder<Frame> for S7CommEncoder {
                         data.encode(dst);
                     }
                 }
-            },
+            }
         }
         Ok(())
     }
@@ -136,82 +94,46 @@ impl Decoder for S7CommDecoder {
     fn decode(
         &mut self,
         src: &mut BytesMut,
-    ) -> std::result::Result<
-        Option<Self::Item>,
-        Self::Error,
-    > {
+    ) -> std::result::Result<Option<Self::Item>, Self::Error> {
         if src.len() < 10 {
             return Ok(None);
         }
         let Some(rosctr) = src.get(1) else {
             unreachable!()
         };
-        let (
-            Some(parameter_0),
-            Some(parameter_1),
-        ) = (src.get(6), src.get(7))
-        else {
+        let (Some(parameter_0), Some(parameter_1)) = (src.get(6), src.get(7)) else {
             unreachable!()
         };
-        let (Some(data_0), Some(data_1)) =
-            (src.get(8), src.get(9))
-        else {
+        let (Some(data_0), Some(data_1)) = (src.get(8), src.get(9)) else {
             unreachable!()
         };
 
-        let parameter_length =
-            u16::from_be_bytes([
-                *parameter_0,
-                *parameter_1,
-            ]);
-        let data_length = u16::from_be_bytes([
-            *data_0, *data_1,
-        ]);
+        let parameter_length = u16::from_be_bytes([*parameter_0, *parameter_1]);
+        let data_length = u16::from_be_bytes([*data_0, *data_1]);
         match *rosctr {
             1 => {
                 // job
-                if src.len()
-                    < (10
-                        + parameter_length
-                        + data_length)
-                        as usize
-                {
+                if src.len() < (10 + parameter_length + data_length) as usize {
                     return Ok(None);
                 }
                 let header = Header::decode(src);
                 let job = Job::decode(src)?;
-                Ok(Some(Frame::Job {
-                    header,
-                    job,
-                }))
-            },
+                Ok(Some(Frame::Job { header, job }))
+            }
             3 => {
                 // ack data
-                if src.len()
-                    < (12
-                        + parameter_length
-                        + data_length)
-                        as usize
-                {
+                if src.len() < (12 + parameter_length + data_length) as usize {
                     debug!(
                         "parameter_length: {}, data_length: {}",
                         parameter_length, data_length
                     );
                     return Ok(None);
                 }
-                let header =
-                    HearderAckData::decode(src);
-                let ack_data =
-                    AckData::decode(src)?;
-                Ok(Some(Frame::AckData {
-                    header,
-                    ack_data,
-                }))
-            },
-            _ => Err(Error::Error(format!(
-                "not support rosctr: {}",
-                rosctr
-            ))),
+                let header = HearderAckData::decode(src);
+                let ack_data = AckData::decode(src)?;
+                Ok(Some(Frame::AckData { header, ack_data }))
+            }
+            _ => Err(Error::Other(format!("not support rosctr: {}", rosctr))),
         }
     }
 }

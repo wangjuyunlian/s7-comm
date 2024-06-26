@@ -17,6 +17,7 @@ include = [
 tokio-util = {version = "0.7.8", features = ["codec"]}
 bytes = "1.4.0"
 thiserror = "1.0.40"
-# tpkt = {path = "../tpkt"}
-tpkt = "0.1.0"
+tpkt = {path = "../tpkt"}
 num_enum = "0.6.1"
+#log = { version = "0.4", default-features = false, features = ["serde"] }
+#hex = "0.4.3"

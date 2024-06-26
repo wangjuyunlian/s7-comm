@@ -19,10 +19,10 @@ bytes = "1.4.0"
 num_enum = "0.6.1"
 log = "0.4.17"
 thiserror = "1.0.40"
-copt = "0.1.0"
+copt = { path = "../copt" }
 
 [dev-dependencies]
 tokio = {version = "1.28.0", features = ["rt-multi-thread", "time", "io-util", "net"]}
 anyhow = "1.0.71"
 custom-utils = "0.10.14"
-tpkt = "0.1.0"
+tpkt = { path = "../tpkt" }

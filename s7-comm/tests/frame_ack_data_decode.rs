@@ -18,9 +18,7 @@ fn setup_decode() {
     if let Ok(res) = frame_builder {
         assert!(res.is_some());
         if let Some(res) = res {
-            let Frame::AckData {
-                header, ack_data
-            } = res else {
+            let Frame::AckData { header, ack_data } = res else {
                 unreachable!()
             };
 
@@ -45,9 +43,7 @@ fn write_var_decode() {
     if let Ok(res) = frame_builder {
         assert!(res.is_some());
         if let Some(res) = res {
-            let Frame::AckData {
-                header, ack_data
-            } = res else {
+            let Frame::AckData { header, ack_data } = res else {
                 unreachable!()
             };
 

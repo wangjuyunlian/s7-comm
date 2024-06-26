@@ -14,31 +14,19 @@ pub struct S7SetupBuilder {
 }
 
 impl S7SetupBuilder {
-    pub fn pdu_ref(
-        mut self,
-        pdu_ref: u16,
-    ) -> Self {
+    pub fn pdu_ref(mut self, pdu_ref: u16) -> Self {
         self.pdu_ref = pdu_ref;
         self
     }
-    pub fn max_amq_calling(
-        mut self,
-        max_amq_calling: u16,
-    ) -> Self {
+    pub fn max_amq_calling(mut self, max_amq_calling: u16) -> Self {
         self.max_amq_calling = max_amq_calling;
         self
     }
-    pub fn max_amq_called(
-        mut self,
-        max_amq_called: u16,
-    ) -> Self {
+    pub fn max_amq_called(mut self, max_amq_called: u16) -> Self {
         self.max_amq_called = max_amq_called;
         self
     }
-    pub fn pdu_length(
-        mut self,
-        pdu_length: u16,
-    ) -> Self {
+    pub fn pdu_length(mut self, pdu_length: u16) -> Self {
         self.pdu_length = pdu_length;
         self
     }
@@ -46,17 +34,11 @@ impl S7SetupBuilder {
     pub fn build(self) -> Result<BytesMut> {
         let frame = TpktFrame::new(
             CoptFrame::builder_of_dt_data(
-                s7_comm::Frame::job_setup(
-                    self.pdu_ref,
-                )
-                .pdu_length(self.pdu_length)
-                .max_amq_calling(
-                    self.max_amq_calling,
-                )
-                .max_amq_called(
-                    self.max_amq_called,
-                )
-                .build(),
+                s7_comm::Frame::job_setup(self.pdu_ref)
+                    .pdu_length(self.pdu_length)
+                    .max_amq_calling(self.max_amq_calling)
+                    .max_amq_called(self.max_amq_called)
+                    .build(),
             )
             .build(0, true),
         );
