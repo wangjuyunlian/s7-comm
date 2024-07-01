@@ -7,7 +7,6 @@ use std::ops::Deref;
 type S7Area = s7_comm::Area;
 // Area ID
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-#[allow(dead_code)]
 pub enum Area {
     ProcessInput(DataSizeType),
     ProcessOutput(DataSizeType),
@@ -23,8 +22,9 @@ pub enum Area {
     /// This is your storage  : db number,
     /// DataSizeType
     DataBausteine(u16, DataSizeType),
-    V(DataSizeType), /* Counter,
-                      * Timer, */
+    V(DataSizeType),
+    Timer(DataSizeType),
+    /* TODO: Counter */
 }
 
 impl Into<ItemRequest> for Area {
@@ -70,6 +70,14 @@ impl Into<ItemRequest> for Area {
                 ds.bit_addr(),
                 ds.len(),
             ),
+            Area::Timer(ds) => ItemRequest::new(
+                ds.to_transport_size(),
+                s7_comm::DbNumber::NotIn,
+                S7Area::DataBlocks,
+                ds.byte_addr(),
+                ds.bit_addr(),
+                ds.len(),
+            ),
         }
     }
 }
@@ -81,8 +89,9 @@ impl Area {
             Area::ProcessOutput(_) => S7Area::ProcessOutput,
             Area::Merker(_) => S7Area::Merker,
             Area::V(_) => S7Area::DataBlocks,
-            Area::DataBausteine(_, _) => S7Area::DataBlocks, /* Area::Counter => {0x1C}
-                                                              * Area::Timer => {0x1D} */
+            Area::DataBausteine(_, _) => S7Area::DataBlocks,
+            Area::Timer(_) => S7Area::Timer,
+            /* Area::Counter => {0x1C} */
         }
     }
 
@@ -93,6 +102,7 @@ impl Area {
             Area::Merker(_) => 0,
             Area::V(_) => 1,
             Area::DataBausteine(db_number, _) => *db_number,
+            Area::Timer(_) => 0,
         }
     }
 }
@@ -106,6 +116,7 @@ impl Deref for Area {
             Area::Merker(val) => val,
             Area::V(val) => val,
             Area::DataBausteine(_, val) => val,
+            Area::Timer(val) => val,
         }
     }
 }
@@ -162,6 +173,7 @@ impl DataSizeType {
             Byte { len, .. } => *len,
         }
     }
+
 
     pub fn byte_addr(&self) -> u16 {
         use DataSizeType::*;
