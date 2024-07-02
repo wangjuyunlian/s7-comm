@@ -678,6 +678,7 @@ pub enum DataTransportSize {
 pub enum TransportSize {
     Bit = 0x01,
     NoBit = 0x02,
+    Timer = 0x1d,
     #[num_enum(catch_all)]
     NotSupport(u8),
 }

@@ -71,7 +71,7 @@ impl Into<ItemRequest> for Area {
                 ds.len(),
             ),
             Area::Timer(ds) => ItemRequest::new(
-                ds.to_transport_size(),
+                TransportSize::Timer,
                 s7_comm::DbNumber::NotIn,
                 S7Area::Timer,
                 ds.byte_addr(),
