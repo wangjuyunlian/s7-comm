@@ -73,7 +73,7 @@ impl Into<ItemRequest> for Area {
             Area::Timer(ds) => ItemRequest::new(
                 ds.to_transport_size(),
                 s7_comm::DbNumber::NotIn,
-                S7Area::DataBlocks,
+                S7Area::Timer,
                 ds.byte_addr(),
                 ds.bit_addr(),
                 ds.len(),
@@ -173,7 +173,6 @@ impl DataSizeType {
             Byte { len, .. } => *len,
         }
     }
-
 
     pub fn byte_addr(&self) -> u16 {
         use DataSizeType::*;

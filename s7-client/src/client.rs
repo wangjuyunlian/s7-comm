@@ -170,6 +170,7 @@ impl S7Client {
     pub async fn read(&mut self, area: &Area) -> Result<DataItemVal> {
         let frame = build_framed_s7_read(&self.options, &[*area])?;
         self.write_frame(frame).await?;
+
         let frame = self.read_frame().await?.payload();
         if let PduType::DtData(comm) = frame.pdu_type {
             if let Frame::AckData { ack_data, .. } = comm.payload() {
@@ -187,6 +188,7 @@ impl S7Client {
                 }
             }
         }
+
         return Err(Error::Err(format!("should recv read var")));
     }
 

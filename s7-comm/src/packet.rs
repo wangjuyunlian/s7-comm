@@ -588,6 +588,7 @@ impl DataItemVal {
                 src.len()
             )));
         }
+
         let return_code = ReturnCode::try_from(src.get_u8())?;
         let transport_size_type = DataTransportSize::from(src.get_u8());
         let length = src.get_u16();
@@ -605,13 +606,16 @@ impl DataItemVal {
                 bytes_len
             )));
         }
+
         let mut data = Vec::with_capacity(bytes_len);
         for _ in 0..bytes_len {
             data.push(src.get_u8())
         }
+
         if fill_byte_len > 0 && src.len() >= 1 {
             src.get_u8();
         }
+
         Ok(Self {
             return_code,
             transport_size_type,
