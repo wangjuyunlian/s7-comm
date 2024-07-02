@@ -433,59 +433,6 @@ impl ItemRequest {
         }
     }
 
-    /*
-    pub fn init_db_byte(
-        db_number: u16,
-        byte_addr: u16,
-        bit_addr: u8,
-        length: u16,
-    ) -> Self {
-        Self {
-            variable_specification:
-                PARAM_ITEM_VAR_SPEC,
-            follow_length:
-                PARAM_ITEM_VAR_SPEC_LENGTH,
-            syntax_id: Syntax::S7Any,
-            transport_size_type:
-                TransportSize::NoBit,
-            length,
-            db_number: DbNumber::DbNumber(
-                db_number,
-            ),
-            area: Area::DataBlocks,
-            address: Address {
-                byte_addr,
-                bit_addr,
-            },
-        }
-    }
-
-    pub fn init_db_bit(
-        db_number: u16,
-        byte_addr: u16,
-        bit_addr: u8,
-    ) -> Self {
-        Self {
-            variable_specification:
-                PARAM_ITEM_VAR_SPEC,
-            follow_length:
-                PARAM_ITEM_VAR_SPEC_LENGTH,
-            syntax_id: Syntax::S7Any,
-            transport_size_type:
-                TransportSize::Bit,
-            length: 1,
-            db_number: DbNumber::DbNumber(
-                db_number,
-            ),
-            area: Area::DataBlocks,
-            address: Address {
-                byte_addr,
-                bit_addr,
-            },
-        }
-    }
-    */
-
     pub fn init_byte(db_number: Option<u16>, area: Area, byte_addr: u16, length: u16) -> Self {
         let db_number = match db_number {
             Some(x) => DbNumber::DbNumber(x),
@@ -539,8 +486,8 @@ impl ItemRequest {
         dst.put_u8(self.transport_size_type.into());
         dst.extend_from_slice(self.length.to_be_bytes().as_slice());
         dst.put_u16(self.db_number.into());
-        dst.put_u8(self.area.into());
-        dst.extend_from_slice(self.address.to_bytes().as_slice());
+        dst.put_u8(self.area.clone().into());
+        dst.extend_from_slice(self.address.to_bytes(&self.area).as_slice());
     }
 
     fn decode(src: &mut BytesMut) -> Result<Self> {
@@ -549,6 +496,7 @@ impl ItemRequest {
                 "item request byte's length is not enough".to_string(),
             ));
         }
+
         let variable_specification = src.get_u8();
         let follow_length = src.get_u8();
         let syntax_id = Syntax::from(src.get_u8());
@@ -556,7 +504,8 @@ impl ItemRequest {
         let length = src.get_u16();
         let db_number = DbNumber::from(src.get_u16());
         let area = Area::from(src.get_u8());
-        let address = Address::from_bytes(src.get_u8(), src.get_u8(), src.get_u8());
+        let address = Address::from_bytes(&area, src.get_u8(), src.get_u8(), src.get_u8());
+
         Ok(Self {
             variable_specification,
             follow_length,
@@ -729,7 +678,7 @@ pub enum TransportSize {
     NotSupport(u8),
 }
 
-#[derive(Debug, IntoPrimitive, FromPrimitive, Eq, PartialEq)]
+#[derive(Debug, Clone, IntoPrimitive, FromPrimitive, Eq, PartialEq)]
 #[repr(u8)]
 pub enum Area {
     ProcessInput = 0x81,
@@ -749,6 +698,7 @@ pub enum Syntax {
     #[num_enum(catch_all)]
     NotSupport(u8),
 }
+
 #[derive(Debug, IntoPrimitive, FromPrimitive, Eq, PartialEq)]
 #[repr(u16)]
 pub enum DbNumber {
@@ -756,6 +706,7 @@ pub enum DbNumber {
     #[num_enum(catch_all)]
     DbNumber(u16),
 }
+
 #[derive(Debug, Eq, PartialEq)]
 pub struct Address {
     byte_addr: u16,
@@ -763,21 +714,39 @@ pub struct Address {
 }
 
 impl Address {
-    pub fn to_bytes(&self) -> [u8; 3] {
-        let [byte_0, byte_1] = self.byte_addr.to_be_bytes();
-        [
-            byte_0 >> 5,
-            byte_0 << 3 | byte_1 >> 5,
-            byte_1 << 3 | self.bit_addr,
-        ]
+    pub fn to_bytes(&self, area: &Area) -> [u8; 3] {
+        match area {
+            Area::Timer => {
+                let [byte_1, byte_2] = self.byte_addr.to_be_bytes();
+                [0, byte_1, byte_2]
+            }
+            _ => {
+                let [byte_0, byte_1] = self.byte_addr.to_be_bytes();
+                [
+                    byte_0 >> 5,
+                    byte_0 << 3 | byte_1 >> 5,
+                    byte_1 << 3 | self.bit_addr,
+                ]
+            }
+        }
     }
 
-    pub fn from_bytes(index_0: u8, index_1: u8, index_2: u8) -> Self {
-        let index_0 = index_0 << 5 | index_1 >> 3;
-        let index_1 = index_1 << 5 | index_2 >> 3;
+    pub fn from_bytes(area: &Area, index_0: u8, index_1: u8, index_2: u8) -> Self {
+        let (byte_addr, bit_addr) = match area {
+            Area::Timer => {
+                let byte_addr = u16::from_be_bytes([index_1, index_2]);
+                (byte_addr, 0)
+            }
+            _ => {
+                let index_0 = index_0 << 5 | index_1 >> 3;
+                let index_1 = index_1 << 5 | index_2 >> 3;
 
-        let byte_addr = u16::from_be_bytes([index_0, index_1]);
-        let bit_addr = index_2 & 0b0000_0111;
+                let byte_addr = u16::from_be_bytes([index_0, index_1]);
+                let bit_addr = index_2 & 0b0000_0111;
+                (byte_addr, bit_addr)
+            }
+        };
+
         Self {
             byte_addr,
             bit_addr,
@@ -787,15 +756,26 @@ impl Address {
 
 #[cfg(test)]
 mod test {
-    use super::Address;
+    use super::{Address, Area};
 
     #[test]
-    fn check_address() {
+    fn check_common_address() {
         let addr = Address {
             byte_addr: 0b0000000100101100,
             bit_addr: 0,
         };
         assert_eq!(addr.byte_addr, 300);
-        assert_eq!(addr.to_bytes(), [0, 9, 0x60])
+        assert_eq!(addr.to_bytes(&Area::Merker), [0, 9, 0x60])
+    }
+
+    #[test]
+    fn check_timer_address() {
+        let addr = Address::from_bytes(&Area::Timer, 0, 0, 0xc8);
+        assert_eq!(addr.byte_addr, 200);
+        assert_eq!(addr.to_bytes(&Area::Timer), [0, 0, 0xc8]);
+
+        let addr = Address::from_bytes(&Area::Timer, 0, 1, 0x2d);
+        assert_eq!(addr.byte_addr, 301);
+        assert_eq!(addr.to_bytes(&Area::Timer), [0, 1, 0x2d]);
     }
 }
